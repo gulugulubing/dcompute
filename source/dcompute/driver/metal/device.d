@@ -1,6 +1,6 @@
 module dcompute.driver.metal.device;
 
-import dcompute.driver.metal.bindings;
+import metal.device;
 
 struct Device {
     private void* raw_;
@@ -24,7 +24,7 @@ __gshared void* g_defaultDevice;
 Device defaultDevice() {
     Device dev;
     if (g_defaultDevice is null) {
-        g_defaultDevice = cast(void*) mtlCreateSystemDefaultDevice();
+        g_defaultDevice = cast(void*) MTLCreateSystemDefaultDevice();
     }
     dev.raw = cast(MTLDevice) g_defaultDevice;
     return dev;

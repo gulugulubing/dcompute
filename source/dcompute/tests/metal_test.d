@@ -3,6 +3,7 @@ module dcompute.tests.metal_test;
 import std.math : fabs;
 import std.stdio : writeln;
 import dcompute.driver.metal;
+import metal;
 
 private int fail(const(char)[] msg) {
     writeln(msg);
@@ -48,7 +49,7 @@ int main() {
     scope(exit) bBuffer.release();
     scope(exit) outBuffer.release();
 
-    queue.enqueue(kernel, mtlSize(n, 1, 1), mtlSize(64, 1, 1))
+    queue.enqueue(kernel, MTLSize(n, 1, 1), MTLSize(64, 1, 1))
         (aBuffer, bBuffer, outBuffer);
 
     auto outPtr = cast(float*) outBuffer.contents();

@@ -2,7 +2,8 @@ module dcompute.driver.metal.encoder;
 
 import dcompute.driver.metal.buffer;
 import dcompute.driver.metal.program;
-import dcompute.driver.metal.bindings;
+import foundation;
+import metal;
 
 struct Encoder {
     private void* raw_;
@@ -27,7 +28,7 @@ struct Encoder {
 
     void setBytes(const(void)* bytes, NSUInteger length, NSUInteger index) {
         auto enc = raw();
-        if (enc !is null) enc.setBytes(bytes, length, index);
+        if (enc !is null) enc.setBytes(cast(void*)bytes, length, index);
     }
 
     void setThreadgroupMemoryLength(NSUInteger length, NSUInteger index) {

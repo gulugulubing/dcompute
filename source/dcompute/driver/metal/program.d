@@ -1,7 +1,9 @@
 module dcompute.driver.metal.program;
 
 import dcompute.driver.metal.device;
-import dcompute.driver.metal.bindings;
+import std.string : toStringz;
+import metal;
+import foundation;
 
 struct Library {
     private void* raw_;
@@ -20,9 +22,12 @@ struct Library {
         raw_ = null;
     }
 
-    MTLFunction newFunction(const(char)[] name) {
+    MTLFunction newFunction(string name) {
         auto lib = raw();
-        return (lib is null) ? null : lib.newFunctionWithName(nsString(name));
+        if (lib is null) return null;
+        auto nsStr = NSString.create(toStringz(name));
+        scope(exit) nsStr.release();
+        return lib.newFunctionWithName(nsStr);
     }
 }
 
@@ -62,24 +67,34 @@ struct Program {
         return p;
     }
 
-    Library loadLibrary(const(char)[] path) {
+    Library loadLibrary(string path) {
         auto dev = device.raw;
-        library.raw = (dev is null) ? null : dev.newLibraryWithFile(nsString(path), null);
+        if (dev is null) return library;
+        auto nsPath = NSString.create(toStringz(path));
+        scope(exit) nsPath.release();
+        auto url = NSURL.fromPath(nsPath);
+        NSError error;
+        library.raw = dev.newLibrary(url, error);
         return library;
     }
 
     Pipeline makePipeline(MTLFunction fn) {
         Pipeline pso;
         auto dev = device.raw;
-        pso.raw = (dev is null) ? null : dev.newComputePipelineStateWithFunction(fn, null);
+        if (dev is null || fn is null) return pso;
+        NSError error;
+        pso.raw = dev.newComputePipelineStateWithFunction(
+            fn, MTLPipelineOption.None, null, error);
         return pso;
     }
 
-    Kernel getKernel(const(char)[] name) {
+    Kernel getKernel(string name) {
         Kernel k;
         auto lib = library.raw;
         if (lib is null) return k;
-        auto fn = lib.newFunctionWithName(nsString(name));
+        auto nsStr = NSString.create(toStringz(name));
+        scope(exit) nsStr.release();
+        auto fn = lib.newFunctionWithName(nsStr);
         if (fn is null) return k;
         k.pipeline = makePipeline(fn);
         fn.release();

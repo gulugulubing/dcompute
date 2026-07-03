@@ -7,6 +7,7 @@
     "dependencies": {
         "derelict-cl"  : "~>3.2.0",
         "derelict-cuda": "~>3.1.1",
+        "metal-d": { "path": "/Users/qiugaofei/dlang/metal-d" },
         "taggedalgebraic": "~>0.10.7"
     },
     "configurations": [

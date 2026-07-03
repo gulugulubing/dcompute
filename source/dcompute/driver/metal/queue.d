@@ -3,8 +3,9 @@ module dcompute.driver.metal.queue;
 import dcompute.driver.metal.device;
 import dcompute.driver.metal.encoder;
 import dcompute.driver.metal.program;
-import dcompute.driver.metal.bindings;
 import dcompute.driver.metal.buffer;
+import foundation;
+import metal;
 import std.meta : allSatisfy;
 import std.traits : isNumeric, Unqual;
 
@@ -108,6 +109,10 @@ struct Queue {
         cmdBuffer.waitUntilCompleted();
     }
 
+    /// Batch multiple dispatches into one command buffer (single GPU sync on commit).
+    ComputeBatch beginBatch() {
+        return ComputeBatch(this);
+    }
 
     auto enqueue(Kernel kernel, MTLSize grid, MTLSize group) {
         static struct Launch {
@@ -130,6 +135,80 @@ struct Queue {
         }
 
         return Launch(this, kernel, grid, group);
+    }
+}
+
+/// Record several compute dispatches; call commitAndWait() once at the end.
+struct ComputeBatch {
+    private CommandBuffer cmdBuffer_;
+    private Encoder encoder_;
+    private bool active_;
+    private bool computeEncoderOpen_;
+
+    this(Queue queue) {
+        cmdBuffer_ = queue.commandBuffer();
+        if (cmdBuffer_.raw is null) {
+            active_ = false;
+            computeEncoderOpen_ = false;
+            return;
+        }
+        encoder_ = cmdBuffer_.computeEncoder();
+        active_ = encoder_.raw !is null;
+        computeEncoderOpen_ = active_;
+    }
+
+    @property MTLCommandBuffer commandBuffer() {
+        return cmdBuffer_.raw;
+    }
+
+    /// End the compute encoder so external encoders (e.g. MPS) can use the command buffer.
+    void suspendComputeEncoding() {
+        if (!active_ || !computeEncoderOpen_) return;
+        encoder_.endEncoding();
+        encoder_.release();
+        computeEncoderOpen_ = false;
+    }
+
+    /// Resume compute dispatches after suspendComputeEncoding().
+    void resumeComputeEncoding() {
+        if (!active_ || computeEncoderOpen_) return;
+        encoder_ = cmdBuffer_.computeEncoder();
+        computeEncoderOpen_ = encoder_.raw !is null;
+    }
+
+    void enqueue(Args...)(Pipeline pipeline, MTLSize grid, MTLSize group, Args args)
+        if (allSatisfy!(isKernelArgument, Args)) {
+        if (!active_ || !computeEncoderOpen_) return;
+        encoder_.setPipeline(pipeline);
+        foreach (i, ref arg; args) {
+            encodeKernelArgument(encoder_, arg, cast(NSUInteger) i);
+        }
+        encoder_.dispatchThreads(grid, group);
+    }
+
+    void commit() {
+        if (!active_) return;
+        if (computeEncoderOpen_) {
+            encoder_.endEncoding();
+            encoder_.release();
+            computeEncoderOpen_ = false;
+        }
+        cmdBuffer_.commit();
+    }
+
+    void wait() {
+        if (cmdBuffer_.raw is null) {
+            active_ = false;
+            return;
+        }
+        cmdBuffer_.waitUntilCompleted();
+        cmdBuffer_.release();
+        active_ = false;
+    }
+
+    void commitAndWait() {
+        commit();
+        wait();
     }
 }
 
